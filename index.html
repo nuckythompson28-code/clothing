@@ -987,7 +987,7 @@ async function doDist(){
   const ts=`${S(now.getHours())}:${S(now.getMinutes())}`;
   const sigData=sigC.toDataURL('image/png');const rid=Date.now().toString(36);
   const dI=[];
-  Object.entries(sel).forEach(([id,q])=>{if(q<=0)return;const it=items.find(i=>i.id===id);dI.push({id,name:it.name,size:it.size==='FREE'?'':it.size,qty:q});it.stock-=q;it.totalOut+=q});
+  Object.entries(sel).forEach(([id,q])=>{if(q<=0)return;const it=items.find(i=>i.id===id);it.stock-=q;it.totalOut+=q;dI.push({id,name:it.name,size:it.size==='FREE'?'':it.size,qty:q,after:it.stock})});
   const rec={id:rid,type:'dist',empId:selE.empId,name:selE.name,dept:selE.dept,rank:selE.rank,date:ds,time:ts,items:dI,sigData};
   hist.unshift(rec);sv();
   makePDF(rec);sel={};clrEmp();rI();rHist();cMo('signMo');T('완료! PDF 다운로드');
@@ -1189,6 +1189,12 @@ function rHistYearFilter(all){
   sel.innerHTML='<option value="">전체연도</option>'+years.map(y=>`<option value="${y}"${y===prev?' selected':''}>${y}년</option>`).join('');
 }
 
+// 이력 품목 한 줄 표시 — after(처리 직후 재고)가 있으면 "→ 재고 N" 병기
+function fmtHistItem(i,isRet){
+  const base=`${i.name}${i.size?' ('+i.size+')':''} ×${i.qty}`;
+  if(i.after==null||i.after==='')return base;
+  return base+` <span style="color:${isRet?'var(--grn)':'var(--org)'};font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap">→ 재고 ${i.after}</span>`;
+}
 function rHistList(all){
   const q=(document.getElementById('hSrch')?.value||'').toLowerCase();
   const yr=document.getElementById('hYear')?.value||'';
@@ -1212,7 +1218,7 @@ function rHistList(all){
       ? '<span class="badge b-p">레거시</span>'
       : isRet ? '<span class="badge b-g">반납</span>'
       : '<span class="badge b-b">지급</span>';
-    const itemsStr=(r.items||[]).map(i=>`${i.name}${i.size?' ('+i.size+')':''} ×${i.qty}`).join(', ');
+    const itemsStr=(r.items||[]).map(i=>fmtHistItem(i,isRet)).join(', ');
     return `<div class="h-row">
       <div class="h-row-top">
         <div>${typeTag} <span style="font-weight:600;font-size:12px">${r.name}</span> <span class="badge b-b" style="font-weight:500">${r.dept||'-'}</span></div>
@@ -1232,7 +1238,7 @@ function det(id){const r=hist.find(h=>h.id===id);if(!r)return;
   const isRet=r.type==='return';
   document.getElementById('dtT').textContent=`${isRet?'[반납] ':''}${r.name} — ${r.date}`;
   document.getElementById('dtB').innerHTML=`<div style="font-size:11px;color:var(--tx2);margin-bottom:6px">${r.dept}${r.rank?' · '+r.rank:''} · ${r.time}</div>
-    ${r.items.map(i=>`<div class="sum-row"><span>${i.name}${i.size?' <span style="color:var(--acc2)">'+i.size+'</span>':''}</span><span>${i.qty}개</span></div>`).join('')}
+    ${r.items.map(i=>`<div class="sum-row"><span>${i.name}${i.size?' <span style="color:var(--acc2)">'+i.size+'</span>':''}</span><span>${i.qty}개${i.after!=null&&i.after!==''?` <span style="color:${isRet?'var(--grn)':'var(--org)'};font-size:10px">(처리 후 재고 ${i.after})</span>`:''}</span></div>`).join('')}
     ${r.sigData?`<div style="margin-top:8px"><div class="fl">서명</div><div style="background:#fff;border-radius:6px;padding:4px;display:inline-block"><img src="${r.sigData}" style="height:60px"></div></div>`:''}`;
   document.getElementById('dtP').onclick=()=>rePdf(id);oMo('dtMo');
 }
@@ -1728,7 +1734,7 @@ function showED(id){
           const isBf=h.backfilled;
           const isRet=h.type==='return';
           const badge=isBf?'<span class="badge b-p">레거시</span>':isRet?'<span class="badge b-g">반납</span>':'<span class="badge b-b">지급</span>';
-          return `<div class="li" style="padding:7px 0"><div class="li-top">${badge} <span class="li-dt" style="flex:1;text-align:right">${h.date}${h.time?' '+h.time:''}</span></div><div class="li-its">${(h.items||[]).map(i=>`${i.name}${i.size?' ('+i.size+')':''} ×${i.qty}`).join(', ')}</div>${!isBf?`<div class="li-acts"><button class="btn bs bo" onclick="rePdf('${h.id}')">PDF</button></div>`:''}</div>`;
+          return `<div class="li" style="padding:7px 0"><div class="li-top">${badge} <span class="li-dt" style="flex:1;text-align:right">${h.date}${h.time?' '+h.time:''}</span></div><div class="li-its">${(h.items||[]).map(i=>fmtHistItem(i,isRet)).join(', ')}</div>${!isBf?`<div class="li-acts"><button class="btn bs bo" onclick="rePdf('${h.id}')">PDF</button></div>`:''}</div>`;
         }).join('')}
       </div>`;
   }
@@ -1927,7 +1933,7 @@ async function doRet(){
     if(q<=0)return;
     const inv=items.find(x=>x.id===it.id);
     if(inv){inv.stock+=q;inv.totalOut=Math.max(0,inv.totalOut-q);}
-    retItems.push({...it,qty:q});
+    retItems.push({id:it.id,name:it.name,size:it.size,qty:q,after:inv?inv.stock:null});
   });
   if(!retItems.length){T('반납 수량을 입력하세요','var(--red)');return;}
   const now=new Date();const ds=fmt(now);const ts=`${S(now.getHours())}:${S(now.getMinutes())}`;
@@ -1936,7 +1942,8 @@ async function doRet(){
   const rec={id:rid,type:'return',empId:retSrc.empId,name:retSrc.name,dept:retSrc.dept,rank:retSrc.rank,date:ds,time:ts,items:retItems,refId:retSrc.id,sigData:retSigData};
   hist.unshift(rec);sv();
   rInv();rI();rHist();cMo('retMo');
-  T(`반납 ${retItems.reduce((s,i)=>s+i.qty,0)}개 처리 완료`,'var(--grn)');
+  const retSum=retItems.filter(i=>i.after!=null).map(i=>`${i.name}${i.size?'('+i.size+')':''} ${i.after}개`).join(', ');
+  T(`반납 ${retItems.reduce((s,i)=>s+i.qty,0)}개 처리 완료${retSum?' · 현재 재고: '+retSum:''}`,'var(--grn)');
   retSrc=null;
   const res=await aP({action:'return',recordId:rid,empId:rec.empId,name:rec.name,dept:rec.dept,date:ds,time:ts,items:retItems,refId:rec.refId,sigData:retSigData});
   if(res&&res.queued){

@@ -1,6 +1,6 @@
 // SOLTRI 피복관리 Service Worker — 오프라인 셸 캐싱
-// v6: 오프라인 PDF 처리 + uploadPdf 멱등성
-const CACHE = 'soltri-clothing-v7';
+// v8: 이력에 처리 직후 재고(after) 스냅샷 표시
+const CACHE = 'soltri-clothing-v8';
 // GitHub Pages 하위경로(/clothing/) 대응 — 상대경로로 캐싱
 const SHELL = ['./', './index.html', './manifest.json'];
 
