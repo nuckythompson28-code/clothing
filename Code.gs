@@ -510,8 +510,9 @@ function actionImportAll(d) {
   const rows = d.rows || [];
   const sh = sheet_(table);
   if (d.replace) {
+    // deleteRows는 헤더행이 고정된 시트에서 "모든 비고정 행 삭제 불가" 오류 → 내용만 비움
     const last = sh.getLastRow();
-    if (last > 1) sh.deleteRows(2, last - 1);
+    if (last > 1) sh.getRange(2, 1, last - 1, SCHEMA[table].length).clearContent();
   }
   if (rows.length) {
     const vals = rows.map(o => toRow_(table, o));
